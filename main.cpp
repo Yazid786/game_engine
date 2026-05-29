@@ -1,13 +1,14 @@
 #include "engine.h"
 
-#include <stdio.h>
+funcdef void
+entry_point(slice<string> args) {
 
-funcdef Runtime_Error
-entry_point(string_list args) {
+	Temp temp = temp_begin(scratch());
+	for (;;) {
+		temp_end(temp);
+		
+		
+		
+	}
 
-	printf("hello, world\n");
-
-	return Runtime_Error::None;
 }
-
-

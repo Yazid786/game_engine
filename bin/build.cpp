@@ -4,25 +4,44 @@
 // like CMake, premake etc. which complicates our project
 // beyond what is required.
 
-#include "../engine.h"
-
 #include "../os.cpp"
+#include "../arena.cpp"
+#include "../string.cpp"
 #include "../main.cpp"
 
-#if OS_Linux || OS_Mac 
+#if OS_Windows && !DEBUG_BUILD
 
-int main(int argc, char **argv) {
+// ~gaureesh @NOTE: windows has it's own main function that
+// is meant for desktop applications. otherwise the
+// application will have the standard output console visible
+// always.
 
-	string_list args = {};
-	
+int WINAPI
+WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cmd)
+{
+	(void) instance;
+	(void) prev_instance;
+	(void) cmd_line;
+	(void) show_cmd;
+
+	int argc = 0;
+	LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
+	slice<string> args = strings_from_cstrings(scratch(), argc, wargv);
+
+	LocalFree(wargv);
+
 	entry_point(args);
+	return 0;
 }
 
-#elif OS_Windows
+#else
 
-~gaureesh @NOTE: windows has it's own main function that
-is meant for desktop applications. otherwise the
-application will have the standard output console visible
-always.
+int main(int argc, char **argv) {
+	slice<string> args = strings_from_cstrings(scratch(), argc, argv);
+	entry_point(args);
+
+	return 0;
+}
 
 #endif
+
