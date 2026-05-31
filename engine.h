@@ -189,6 +189,7 @@ funcdef OS_Handle os_open_window(string title);
 funcdef void os_close_window(OS_Handle window);
 funcdef bool os_window_should_close(OS_Handle window);
 funcdef OS_Input os_prepare_frame(OS_Handle window);
+funcdef vec2 os_window_size(OS_Handle window);
 
 funcdef string os_string(OS os);
 funcdef void *os_get_gl_proc_address();
@@ -217,6 +218,8 @@ enum class OS_FileKind : u32 {
 	Dynamic_Library,
 	Shader,
 	Font,
+
+	Data, // packed data for release builds
 };
 
 struct OS_FileData {
@@ -268,13 +271,13 @@ funcdef slice<string> strings_from_cstrings(Arena *arena, int count, char **cstr
 funcdef string string_to_cstring(Arena *arena, string s);
 
 //////////////
-// ~gaureesh @NOTE: renderer
+// ~gaureesh @NOTE: graphics
 
 typedef u32 color8; // in 0xFFBBGGAA format
-#define Hex(x) byteswap_u32((u32)(x));
+#define Hex(x) byteswap_u32((u32)(x))
 
 enum class Draw {
-	Triangles, Lines	
+	Triangles, Lines
 };
 
 struct Vertex {
@@ -283,8 +286,15 @@ struct Vertex {
 	color8 color;
 };
 
+struct Camera {
+	vec2 position;
+	vec2 offset; // in pixels
+	f32  scale;
+};
+
 struct Draw_Data {
 	Draw primitive;
+	Camera camera;
 
 	list<Vertex> vertices;
 	list<u16>    indices;
@@ -294,21 +304,18 @@ struct Draw_Data {
 	u32 shader_id;
 };
 
-funcdef void push_quad(Draw_Data *data);
-
-//////////////
-// ~gaureesh @NOTE: graphics
-
 funcdef void gfx_init();
 funcdef void gfx_deinit();
 
 funcdef void gfx_init_draw_data(Draw_Data *data, Draw type);
 funcdef void gfx_deinit_draw_data(Draw_Data *data);
 
-funcdef void gfx_begin();
+funcdef void gfx_begin(Draw_Data *data, vec2 resolution);
 funcdef void gfx_end();
 
 funcdef f32  delta_time();
+
+funcdef void gfx_push_quad(vec2 min, vec2 max, color8 color);
 
 //////////////
 // ~gaureesh @NOTE: cursed `defer` construct for c++

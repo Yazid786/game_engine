@@ -2,7 +2,6 @@
 
 // ~gauresh @NOTE: base type procedure implementations
 
-
 template<typename T> list<T>
 list_make(slice<T> buf) {
 	return {

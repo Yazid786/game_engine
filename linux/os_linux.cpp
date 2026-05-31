@@ -54,6 +54,7 @@ os_file_data(string path)
 	Temp t = {};
 	defer(temp_end(t));
 
+
 	string cstr = string_to_cstring(scratch(&t), path);
 
 	struct stat st;
@@ -92,6 +93,8 @@ os_file_data(string path)
 				 strcasecmp(ext, ".frag") == 0
 		) {
 			result.kind = OS_FileKind::Shader;
+		} else if (strcasecmp(ext, ".data")) {
+			result.kind = OS_FileKind::Data;
 		}
 		else if (strcasecmp(ext, ".ttf")) {
 			result.kind = OS_FileKind::Font;

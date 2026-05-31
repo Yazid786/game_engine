@@ -82,6 +82,18 @@ os_window_should_close(OS_Handle window)
 }
 
 
+funcdef vec2
+os_window_size(OS_Handle window)
+{
+	RGFW_window *win = (RGFW_window *) window.v;
+
+	s32 x, y;
+	RGFW_window_getSize(win, &x, &y);
+
+	return { (f32) x , (f32) y };
+}
+
+
 funcdef OS_Input
 os_prepare_frame(OS_Handle window)
 {
@@ -115,3 +127,5 @@ os_time_diff(OS_TimeStamp t0, OS_TimeStamp t1)
     d.microseconds = (f64)delta_ns * 1e-3;
     return d;
 }
+
+
