@@ -14,7 +14,7 @@
 #include "vendor/rgfw.h"
 
 global struct {
-	bool initialized;
+	bool initialized;//Align_Up_Power_2Align_Up_Power_2
 
 	Arena *persist;
 
@@ -56,7 +56,6 @@ os_open_window(string title)
 		RGFW_windowCenter | RGFW_windowAllowDND | RGFW_windowOpenGL,
 		win
 	);
-
 	RGFW_window_makeCurrentContext_OpenGL(win);
 	RGFW_window_swapInterval_OpenGL(win, 0);
 	RGFW_window_setMinSize(win, 200, 200);

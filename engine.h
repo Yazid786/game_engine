@@ -172,7 +172,7 @@ enum class OS : s32 {
 	Current = OS::Windows,
 #elif OS_Linux
 	Current = OS::Linux,
-#elif OS_MAC
+#elif OS_Mac
 	Current = OS::Mac,
 #endif
 };
@@ -372,5 +372,16 @@ funcdef void assets_init();
 funcdef void assets_deinit();
 
 funcdef slice<string> asset_fetch_shader_source(Asset shader, Arena *arena);
+
+
+//for test
+
+struct Image{
+	int width;
+	int height;
+	int channels;
+	bytes data;
+};
+funcdef Image png_to_bin_data(Arena* arena, string path);
 
 #endif // ENGINE_H

@@ -117,7 +117,7 @@ os_file_to_buffer(u8 *ptr, u64 len, string path)
 	defer(temp_end(t));
 
 	string cstring = string_to_cstring(scratch(), path);
-	
+	// Align_Up_Power_2
 	int fd = open((char *)cstring.raw, O_RDONLY);
 	if (fd < 0) {
 		return Load_IO_Error;

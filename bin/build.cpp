@@ -13,7 +13,7 @@
 #include "../string.cpp"
 #include "../gfx.cpp"
 #include "../main.cpp"
-
+#include "../test.cpp"
 #include "../vendor/glad.c"
 
 

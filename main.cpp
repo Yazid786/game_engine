@@ -5,9 +5,14 @@
 funcdef void
 entry_point(slice<string> args)
 {
+	Arena* asset_arena = arena_make(MB(100));
+	char* path_ = "/vendor/Screenshot From 2026-06-05 22-06-43.png";
+	Temp temp = temp_begin(scratch());
+	defer(temp_end(temp));
+	string path = string_from_cstring(scratch(), path_);
+	Image data = png_to_bin_data(asset_arena,path);
 	os_init();
 	defer(os_deinit());
-
 	OS_Handle window = os_open_window(S("engine"));
 	defer(os_close_window(window));
 
@@ -22,8 +27,6 @@ entry_point(slice<string> args)
 	vec2 size = os_window_size(window);
 
 	draw_data.camera.scale = 1.0f;
-
-
 	f32 time = 0.0f;
 
 	while(!os_window_should_close(window))
@@ -35,7 +38,6 @@ entry_point(slice<string> args)
 			resolution.x * 0.5f,
 			resolution.y * 0.5f
 		};
-
 		gfx_begin(&draw_data, resolution);
 
 		const int GRID_SIZE = 10;
