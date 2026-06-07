@@ -9,8 +9,9 @@ funcdef Image png_to_bin_data(Arena* asset_arena,string path)
     int height;
     int channels;
 
-
+    printf("%s\n",path);
     bytes img_data = os_load_entire_file(asset_arena,path);
+    printf("%u\n",img_data,img_data.raw);
     u8* img = stbi_load_from_memory(img_data.raw,img_data.len,&width,&height,&channels,0);
     if (!img)
     {

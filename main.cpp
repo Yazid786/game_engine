@@ -6,7 +6,7 @@ funcdef void
 entry_point(slice<string> args)
 {
 	Arena* asset_arena = arena_make(MB(100));
-	char* path_ = "/vendor/Screenshot From 2026-06-05 22-06-43.png";
+	char* path_ = "vendor/image.ppm";
 	Temp temp = temp_begin(scratch());
 	defer(temp_end(temp));
 	string path = string_from_cstring(scratch(), path_);
