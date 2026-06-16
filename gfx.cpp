@@ -5,35 +5,76 @@
 
 #define MAX_VERTICES 2048
 
-
 static struct {
 	Arena *persist;
 	OS_TimeStamp last_frame_time;
 	f32 delta_time;
 
 	vec2 resolution;
-
-	Draw_Data *data;
 } gfx_ctx;
 
+static mat4
+mat4_ortho(f32 left, f32 right, f32 bottom, f32 top, f32 near, f32 far)
+{
+	mat4 m = {0};
+	m.m[0]  =  2.0f / (right - left);
+	m.m[5]  =  2.0f / (top - bottom);
+	m.m[10] = -2.0f / (far - near);
+	m.m[12] = -(right + left) / (right - left);
+	m.m[13] = -(top + bottom) / (top - bottom);
+	m.m[14] = -(far + near)   / (far - near);
+	m.m[15] =  1.0f;
+	return m;
+}
+
+static mat4
+mat4_mul(mat4 a, mat4 b)
+{
+	mat4 out = {0};
+	for (int col = 0; col < 4; col++) {
+		for (int row = 0; row < 4; row++) {
+			f32 sum = 0.0f;
+			for (int k = 0; k < 4; k++) {
+				sum += a.m[k * 4 + row] * b.m[col * 4 + k];
+			}
+			out.m[col * 4 + row] = sum;
+		}
+	}
+	return out;
+}
+
+
+static mat4
+mat4_camera_view(vec2 position, vec2 offset, f32 scale)
+{
+	mat4 out = {0};
+	out.m[0]  = scale;
+	out.m[5]  = scale;
+	out.m[10] = 1.0f;
+	out.m[15] = 1.0f;
+	out.m[12] = (-position.x * scale) + offset.x;
+	out.m[13] = (-position.y * scale) + offset.y;
+	return out;
+}
+
 funcdef void
-gfx__flush(Draw_Data *data)
+gfx_draw(Draw_Data *data)
 {
 	if (data->vertices.len == 0 || data->indices.len == 0) {
 		return;
 	}
 
+	glUseProgram(data->shader_id);
 	glBindVertexArray(data->vao);
-
 	glBindBuffer(GL_ARRAY_BUFFER, data->vbo);
-	glBufferSubData(
-		GL_ARRAY_BUFFER,
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data->ebo);
+
+	glBufferSubData(GL_ARRAY_BUFFER,
 		0,
 		data->vertices.len * sizeof(Vertex),
 		data->vertices.raw
 	);
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data->ebo);
 	glBufferSubData(
 		GL_ELEMENT_ARRAY_BUFFER,
 		0,
@@ -41,29 +82,25 @@ gfx__flush(Draw_Data *data)
 		data->indices.raw
 	);
 
-	glUseProgram(data->shader_id);
-
-	glUniform2f(
-		glGetUniformLocation(data->shader_id, "u_camera_position"),
-		data->camera.position.x,
-		data->camera.position.y
+	mat4 proj = mat4_ortho(
+		0.0f, gfx_ctx.resolution.x,
+		gfx_ctx.resolution.y, 0.0f,
+		-1.0f, 1.0f
 	);
 
-	glUniform2f(
-		glGetUniformLocation(data->shader_id, "u_camera_offset"),
-		data->camera.offset.x,
-		data->camera.offset.y
-	);
-
-	glUniform1f(
-		glGetUniformLocation(data->shader_id, "u_camera_scale"),
+	mat4 view = mat4_camera_view(
+		data->camera.position,
+		data->camera.offset,
 		data->camera.scale
 	);
 
-	glUniform2f(
-		glGetUniformLocation(data->shader_id, "u_resolution"),
-		gfx_ctx.resolution.x,
-		gfx_ctx.resolution.y
+	mat4 proj_view = mat4_mul(proj, view);
+
+	glUniformMatrix4fv(
+		glGetUniformLocation(data->shader_id, "u_proj_view"),
+		1,
+		GL_FALSE,
+		proj_view.m
 	);
 
 	GLenum mode = GL_TRIANGLES;
@@ -103,7 +140,6 @@ gfx_init()
 funcdef void
 gfx_deinit()
 {
-	// for now does nothing
 }
 
 funcdef u32
@@ -131,7 +167,7 @@ gfx__compile_shader(int type, string src)
 }
 
 funcdef void
-gfx_init_draw_data(Draw_Data *data, Draw type)
+gfx_init_draw_data(Draw_Data *data, Draw type, string vs, string fs)
 {
 	data->primitive = type;
 
@@ -140,6 +176,7 @@ gfx_init_draw_data(Draw_Data *data, Draw type)
 
 	data->vertices = list_make(vertices);
 	data->indices  = list_make(indices);
+	data->draw_proc = gfx_draw;
 
 	data->camera.position = {0, 0};
 	data->camera.offset   = {0, 0};
@@ -166,70 +203,19 @@ gfx_init_draw_data(Draw_Data *data, Draw type)
 	glEnableVertexAttribArray(2);
 	glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void *)offsetof(Vertex, color));
 
-	// temporary shader loading, soon we will make it better
-	{
-		string vs = S(
-			"#version 400 core\n"
-			"layout (location = 0) in vec3 a_pos;"
-			"layout (location = 1) in vec2 a_uv;"
-			"layout (location = 2) in vec4 a_color;"
-			"uniform vec2 u_camera_position;"
-			"uniform vec2 u_camera_offset;"
-			"uniform float u_camera_scale;"
-			"uniform vec2 u_resolution;"
-			"out vec4 v_color;"
-			"out vec2 v_uv;"
-			"void main() {"
-			"	vec2 p = a_pos.xy;"
-			"	p -= u_camera_position;"
-			"	p *= u_camera_scale;"
-			"	p += u_camera_offset;"
-			"	vec2 ndc;"
-			"	ndc.x = (p.x / u_resolution.x) * 2.0 - 1.0;"
-			"	ndc.y = 1.0 - (p.y / u_resolution.y) * 2.0;"
-			"	gl_Position = vec4(ndc, a_pos.z, 1.0);"
-			"	v_uv = a_uv;"
-			"	v_color = a_color;"
-			"}"
-		);
-
-		string fs = S(
-			"#version 330 core\n"
-			"in vec4       v_color;"
-			"in vec2       v_uv;"
-			"out vec4      Frag_Color;"
-			"void main() {"
-			"   Frag_Color = v_color;"
-			"}"
-		);
-
-		u32 vs_id = gfx__compile_shader(GL_VERTEX_SHADER,   vs);
-		u32 fs_id = gfx__compile_shader(GL_FRAGMENT_SHADER, fs);
-
-		assert(vs_id && fs_id);
-
-		data->shader_id = glCreateProgram();
-		glAttachShader(data->shader_id, vs_id);
-		glAttachShader(data->shader_id, fs_id);
-		glLinkProgram(data->shader_id);
-
-		glDeleteShader(vs_id);
-		glDeleteShader(fs_id);
-
-		glUseProgram(data->shader_id);
-	}
+	gfx_reload_shader(data, vs, fs);
 }
 
 funcdef void
 gfx_deinit_draw_data(Draw_Data *data)
 {
-    glDeleteVertexArrays(1, &data->vao);
-    glDeleteBuffers(1, &data->vbo);
-    glDeleteBuffers(1, &data->ebo);
+	glDeleteVertexArrays(1, &data->vao);
+	glDeleteBuffers(1, &data->vbo);
+	glDeleteBuffers(1, &data->ebo);
 }
 
 funcdef void
-gfx_begin(Draw_Data *data, vec2 resolution)
+gfx_begin(vec2 resolution)
 {
 	OS_TimeStamp curr = os_time_now();
 
@@ -240,78 +226,39 @@ gfx_begin(Draw_Data *data, vec2 resolution)
 
 	gfx_ctx.last_frame_time = curr;
 
-	gfx_ctx.data = data;
 	gfx_ctx.resolution = resolution;
 
-	glViewport(0, 0, (s32) resolution.x, (s32) resolution.y);
+	glViewport(0, 0, (s32)resolution.x, (s32)resolution.y);
 
 	glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-funcdef void
-gfx_end()
-{
-	if (gfx_ctx.data) {
-		gfx__flush(gfx_ctx.data);
-	}
-
-	gfx_ctx.data = nullptr;
-}
-
-funcdef void
-gfx_push_quad(vec2 min, vec2 max, color8 color)
-{
-	Draw_Data *data = gfx_ctx.data;
-	assert(data);
-
-	if (data->vertices.len + 4 > data->vertices.capacity ||
-		data->indices.len + 6 > data->indices.capacity)
-	{
-		gfx__flush(data);
-	}
-
-	u16 base = (u16)data->vertices.len;
-
-	Vertex vertices[4] = {
-		{
-			{ min.x, min.y, 0.0f },
-			{ 0.0f, 0.0f },
-			color,
-		},
-		{
-			{ max.x, min.y, 0.0f },
-			{ 1.0f, 0.0f },
-			color,
-		},
-		{
-			{ max.x, max.y, 0.0f },
-			{ 1.0f, 1.0f },
-			color,
-		},
-		{
-			{ min.x, max.y, 0.0f },
-			{ 0.0f, 1.0f },
-			color,
-		},
-	};
-
-	u16 indices[6] = {
-		(u16) (base + 0),
-		(u16) (base + 1),
-		(u16) (base + 2),
-
-		(u16) (base + 2),
-		(u16) (base + 3),
-		(u16) (base + 0),
-	};
-
-	append_slice(&data->vertices, { vertices, 4 } );
-	append_slice(&data->indices,  { indices, 6 } );
-}
-
-funcdef f32 
+funcdef f32
 delta_time()
 {
 	return gfx_ctx.delta_time;
 }
+
+funcdef void
+gfx_reload_shader(Draw_Data *data, string vs, string fs)
+{
+	if (data->shader_id) {
+		glDeleteProgram(data->shader_id);
+		data->shader_id = 0;
+	}
+
+	u32 vs_id = gfx__compile_shader(GL_VERTEX_SHADER,   vs);
+	u32 fs_id = gfx__compile_shader(GL_FRAGMENT_SHADER, fs);
+
+	assert(vs_id && fs_id);
+
+	data->shader_id = glCreateProgram();
+	glAttachShader(data->shader_id, vs_id);
+	glAttachShader(data->shader_id, fs_id);
+	glLinkProgram(data->shader_id);
+
+	glDeleteShader(vs_id);
+	glDeleteShader(fs_id);
+}
+

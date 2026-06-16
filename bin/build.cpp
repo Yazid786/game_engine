@@ -8,12 +8,13 @@
 // thirdparty
 
 #include "../base.cpp"
+#include "../string.cpp"
+#include "../assets.cpp"
+
 #include "../os.cpp"
 #include "../arena.cpp"
-#include "../string.cpp"
 #include "../gfx.cpp"
 #include "../main.cpp"
-#include "../assets.cpp"
 
 #include "../vendor/glad.c"
 
@@ -35,7 +36,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 
 	int argc = 0;
 	LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
-	slice<string> args = strings_from_cstrings(scratch(), argc, wargv);
+	slice<string> args = strings_from_cstrings(scratch(0, 0), argc, wargv);
 
 	LocalFree(wargv);
 
@@ -46,7 +47,7 @@ WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, int show_cm
 #else
 
 int main(int argc, char **argv) {
-	slice<string> args = strings_from_cstrings(scratch(), argc, argv);
+	slice<string> args = strings_from_cstrings(scratch(0, 0), argc, argv);
 	entry_point(args);
 
 	return 0;

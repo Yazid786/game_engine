@@ -53,10 +53,10 @@ os_file_data(string path)
 {
     OS_FileData result = {};
 
-    Temp t = temp_begin(scratch());
+    Temp t = temp_begin(scratch(0, 0));
     defer(temp_end(t));
 
-    string cstr = string_to_cstring(scratch(), path);
+    string cstr = string_to_cstring(t.arena, path);
 
     DWORD attrs = GetFileAttributesA((char *)cstr.raw);
 
@@ -131,10 +131,10 @@ os_file_data(string path)
 funcdef Load_Error
 os_file_to_buffer(u8 *ptr, u64 len, string path)
 {
-    Temp t = temp_begin(scratch());
+    Temp t = temp_begin(scratch(0, 0));
     defer(temp_end(t));
 
-    string cstr = string_to_cstring(scratch(), path);
+    string cstr = string_to_cstring(t.arena, path);
 
     HANDLE file = CreateFileA(
         (char *)cstr.raw,
@@ -195,10 +195,10 @@ os_file_to_buffer(u8 *ptr, u64 len, string path)
 funcdef bool
 os_write_to_file(string path, bytes data)
 {
-    Temp t = temp_begin(scratch());
+    Temp t = temp_begin(scratch(0, 0));
     defer(temp_end(t));
 
-    string cstr = string_to_cstring(scratch(), path);
+    string cstr = string_to_cstring(t.arena, path);
 
     HANDLE file = CreateFileA(
         (char *)cstr.raw,

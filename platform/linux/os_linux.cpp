@@ -1,6 +1,7 @@
-#include "../engine.h"
+#include "../../engine.h"
 
 #include <errno.h>
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
@@ -48,17 +49,30 @@ os_time_now()
 	return (u64)ts.tv_sec * 1000000000ULL + (u64)ts.tv_nsec;
 }
 
+funcdef void
+os_time_sleep(OS_TimeDuration duration)
+{
+	u64 ns = os_duration_to_ns(duration);
+
+	struct timespec ts;
+	ts.tv_sec  = ns / 1000000000ull;
+	ts.tv_nsec = ns % 1000000000ull;
+
+	while (nanosleep(&ts, &ts) == -1 && errno == EINTR) {
+		// continue sleeping for remaining time
+	}
+}
+
 
 funcdef OS_FileData
 os_file_data(string path)
 {
 	OS_FileData result = {};
 	
-	Temp t = {};
+	Temp t = temp_begin(scratch(0, 0));
 	defer(temp_end(t));
 
-
-	string cstr = string_to_cstring(scratch(&t), path);
+	string cstr = string_to_cstring(t.arena, path);
 
 	struct stat st;
 	if (stat((char *)cstr.raw, &st) != 0) {
@@ -66,6 +80,7 @@ os_file_data(string path)
 	}
 
 	result.flags |= File_Exists;
+	result.timestamp = (u64)st.st_mtim.tv_sec * 1000000000ULL + (u64)st.st_mtim.tv_nsec;
 
 	if (S_ISDIR(st.st_mode)) {
 		result.flags |= File_Directory;
@@ -96,10 +111,10 @@ os_file_data(string path)
 				 strcasecmp(ext, ".frag") == 0
 		) {
 			result.kind = OS_FileKind::Shader;
-		} else if (strcasecmp(ext, ".data")) {
+		} else if (strcasecmp(ext, ".data") == 0) {
 			result.kind = OS_FileKind::Data;
 		}
-		else if (strcasecmp(ext, ".ttf")) {
+		else if (strcasecmp(ext, ".ttf") == 0) {
 			result.kind = OS_FileKind::Font;
 		}
 		else if (strcasecmp(ext, ".so") == 0) {
@@ -113,10 +128,10 @@ os_file_data(string path)
 funcdef Load_Error
 os_file_to_buffer(u8 *ptr, u64 len, string path)
 {
-	Temp t = temp_begin(scratch());
+	Temp t = temp_begin(scratch(0, 0));
 	defer(temp_end(t));
 
-	string cstring = string_to_cstring(scratch(), path);
+	string cstring = string_to_cstring(t.arena, path);
 	
 	int fd = open((char *)cstring.raw, O_RDONLY);
 	if (fd < 0) {
@@ -159,11 +174,11 @@ os_file_to_buffer(u8 *ptr, u64 len, string path)
 funcdef bool
 os_write_to_file(string path, bytes data)
 {
-	Temp t = temp_begin(scratch());
+	Temp t = temp_begin(scratch(0, 0));
 	defer(temp_end(t));
 
 
-	string cstring = string_to_cstring(scratch(), path);
+	string cstring = string_to_cstring(t.arena, path);
 	if (!cstring.raw)
 		return false;
 
@@ -198,4 +213,37 @@ os_write_to_file(string path, bytes data)
 	}
 
 	return true;
+}
+
+
+funcdef OS_Handle
+os_load_library(string path)
+{
+	Temp t = temp_begin(scratch(0, 0));
+	defer(temp_end(t));
+
+	void *handle = dlopen((char *) string_to_cstring(t.arena, path).raw, RTLD_NOW);
+	if (!handle) {
+		printf("%s\n", dlerror());
+	}
+	assert(handle);
+
+	return OS_Handle {
+		(uintptr_t) handle
+	};
+}
+
+funcdef void *
+os_load_symbol(OS_Handle lib, const char *name)
+{
+	void *handle = (void *) lib.v;
+	void *sym_ptr = dlsym(handle, name);
+	return sym_ptr;
+}
+
+funcdef void
+os_unload_library(OS_Handle lib)
+{
+	if (lib.v)
+		dlclose((void *) lib.v);
 }
