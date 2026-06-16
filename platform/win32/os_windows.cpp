@@ -53,36 +53,36 @@ os_file_data(string path)
 {
     OS_FileData result = {};
 
-    Temp t = temp_begin(scratch());
+    Temp t = temp_begin(scratch(0, 0));
     defer(temp_end(t));
 
-    string cstr = string_to_cstring(scratch(), path);
-
-    DWORD attrs = GetFileAttributesA((char *)cstr.raw);
-
-    if (attrs == INVALID_FILE_ATTRIBUTES)
-        return result;
-
-    result.flags |= File_Exists;
-
-    if (attrs & FILE_ATTRIBUTE_DIRECTORY)
-        result.flags |= File_Directory;
+    string cstr = string_to_cstring(t.arena, path);
 
     WIN32_FILE_ATTRIBUTE_DATA data = {};
-    if (GetFileAttributesExA(
+    if (!GetFileAttributesExA(
             (char *)cstr.raw,
             GetFileExInfoStandard,
             &data))
     {
-        ULARGE_INTEGER size;
-        size.HighPart = data.nFileSizeHigh;
-        size.LowPart  = data.nFileSizeLow;
-
-        result.size = size.QuadPart;
+        return result;
     }
 
-    char const *ext = nullptr;
+    result.flags |= File_Exists;
 
+    if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        result.flags |= File_Directory;
+
+    ULARGE_INTEGER size = {};
+    size.HighPart = data.nFileSizeHigh;
+    size.LowPart  = data.nFileSizeLow;
+    result.size = size.QuadPart;
+
+    ULARGE_INTEGER timestamp = {};
+    timestamp.HighPart = data.ftLastWriteTime.dwHighDateTime;
+    timestamp.LowPart  = data.ftLastWriteTime.dwLowDateTime;
+    result.timestamp = timestamp.QuadPart;
+
+    char const *ext = nullptr;
     for (char const *c = (char *)cstr.raw; *c; ++c)
     {
         if (*c == '.')
@@ -131,10 +131,10 @@ os_file_data(string path)
 funcdef Load_Error
 os_file_to_buffer(u8 *ptr, u64 len, string path)
 {
-    Temp t = temp_begin(scratch());
+    Temp t = temp_begin(scratch(0, 0));
     defer(temp_end(t));
 
-    string cstr = string_to_cstring(scratch(), path);
+    string cstr = string_to_cstring(t.arena, path);
 
     HANDLE file = CreateFileA(
         (char *)cstr.raw,
@@ -195,10 +195,10 @@ os_file_to_buffer(u8 *ptr, u64 len, string path)
 funcdef bool
 os_write_to_file(string path, bytes data)
 {
-    Temp t = temp_begin(scratch());
+    Temp t = temp_begin(scratch(0, 0));
     defer(temp_end(t));
 
-    string cstr = string_to_cstring(scratch(), path);
+    string cstr = string_to_cstring(t.arena, path);
 
     HANDLE file = CreateFileA(
         (char *)cstr.raw,
@@ -241,4 +241,52 @@ os_write_to_file(string path, bytes data)
     }
 
     return true;
+}
+
+funcdef OS_Handle
+os_load_library(string path)
+{
+    Temp t = temp_begin(scratch(0, 0));
+    defer(temp_end(t));
+
+    char *path_cstr = (char *)string_to_cstring(t.arena, path).raw;
+
+    HMODULE handle = LoadLibraryA(path_cstr);
+    if (!handle) {
+        printf("LoadLibraryA failed (%lu)\n", GetLastError());
+    }
+    assert(handle);
+
+    return OS_Handle{
+        (uintptr_t)handle
+    };
+}
+
+funcdef void *
+os_load_symbol(OS_Handle lib, const char *name)
+{
+    HMODULE handle = (HMODULE)lib.v;
+    return (void *)GetProcAddress(handle, name);
+}
+
+funcdef void
+os_unload_library(OS_Handle lib)
+{
+    if (lib.v) {
+        FreeLibrary((HMODULE)lib.v);
+    }
+}
+
+funcdef void
+os_time_sleep(OS_TimeDuration duration)
+{
+    u64 ns = os_duration_to_ns(duration);
+
+    DWORD ms = (DWORD)(ns / 1000000ull);
+
+    if (ms == 0 && ns > 0) {
+        ms = 1;
+    }
+
+    Sleep(ms);
 }

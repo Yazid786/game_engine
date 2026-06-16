@@ -132,12 +132,8 @@ global u64    SCRATCH_SIZE   = MB(1);
 global Arena *global_scratch = arena_make(SCRATCH_SIZE);
 
 funcdef Arena *
-scratch(Temp *temp)
+scratch(Arena **conflicts, u64 count)
 {
-	if (temp != nullptr) {
-		*temp = temp_begin(global_scratch);
-	}
-
 	return global_scratch;
 }
 

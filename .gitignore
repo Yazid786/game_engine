@@ -1,1 +1,6 @@
 build/
+
+game.so
+game.dll
+game.exp
+game.pdb

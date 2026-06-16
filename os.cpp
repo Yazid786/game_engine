@@ -1,9 +1,9 @@
 #include "engine.h"
 
 #if OS_Linux
-# include "linux/os_linux.cpp"
+# include "platform/linux/os_linux.cpp"
 #elif OS_Windows
-# include "win32/os_windows.cpp"
+# include "platform/win32/os_windows.cpp"
 #else
 # error "platform implementation missing"
 #endif
@@ -15,9 +15,7 @@
 
 global struct {
 	bool initialized;
-
 	Arena *persist;
-
 } os_ctx;
 
 funcdef string
@@ -94,6 +92,38 @@ os_window_size(OS_Handle window)
 }
 
 
+struct Key_Map {
+	RGFW_key rgfw;
+	Keys key;
+};
+
+global const Key_Map key_map[] = {
+    { RGFW_keyW,      Key_W },
+    { RGFW_keyA,      Key_A },
+    { RGFW_keyS,      Key_S },
+    { RGFW_keyD,      Key_D },
+
+    { RGFW_keyUp,     Key_Arrow_U },
+    { RGFW_keyDown,   Key_Arrow_D },
+    { RGFW_keyLeft,   Key_Arrow_L },
+    { RGFW_keyRight,  Key_Arrow_R },
+
+    { RGFW_keySpace,  Key_Space },
+    { RGFW_keyReturn, Key_Enter },
+    { RGFW_keyE,      Key_E },
+    { RGFW_keyQ,      Key_Q },
+    { RGFW_keyF,      Key_F },
+    { RGFW_keyR,      Key_R },
+
+    { RGFW_keyShiftL,   Key_Shift },
+    { RGFW_keyControlL, Key_Ctrl },
+
+    { RGFW_keyEscape, Key_Escape },
+    { RGFW_keyTab,    Key_Tab },
+};
+
+const u64 key_map_len = sizeof(key_map) / sizeof(Key_Map);
+
 funcdef OS_Input
 os_prepare_frame(OS_Handle window)
 {
@@ -103,7 +133,21 @@ os_prepare_frame(OS_Handle window)
 
 	OS_Input input = {};
 	RGFW_event event = {};
-	while (RGFW_window_checkEvent(win, &event)) {
+	while (RGFW_window_checkEvent(win, &event)); // @NOTE: this does nothing now
+	
+	for (u32 i = 0; i < key_map_len; ++i) {
+		if (RGFW_isKeyPressed(key_map[i].rgfw)) {
+			input.key_state[key_map[i].key] |= Key_Press;
+			input.key_state[Key_Any] |= Key_Press;
+		}
+		if (RGFW_isKeyDown(key_map[i].rgfw)) {
+			input.key_state[key_map[i].key] |= Key_Down;
+			input.key_state[Key_Any] |= Key_Down;
+		}
+		if (RGFW_isKeyReleased(key_map[i].rgfw)) {
+			input.key_state[key_map[i].key] |= Key_Release;
+			input.key_state[Key_Any] |= Key_Release;
+		}
 	}
 
 	return input;
@@ -128,6 +172,16 @@ os_time_diff(OS_TimeStamp t0, OS_TimeStamp t1)
     return d;
 }
 
+funcdef u64
+os_duration_to_ns(OS_TimeDuration d)
+{
+    f64 ns =
+        d.seconds      * 1000000000.0 +
+        d.milliseconds * 1000000.0 +
+        d.microseconds * 1000.0;
+
+    return (u64)ns;
+}
 
 funcdef bytes
 os_load_entire_file(Arena *arena, string path)
